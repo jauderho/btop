@@ -87,3 +87,62 @@ jobs:
         with:
           name: btop-x86_64-macos13-Ventura
           path: 'bin/*'
+
+  build-macos14:
+    runs-on: macos-14
+    steps:
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build tools
+        run: |
+          export HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1
+          brew update --quiet
+          brew install --force --overwrite llvm lowdown
+
+      - name: Compile
+        run: |
+          make CXX=$(brew --prefix llvm)/bin/clang++ ARCH=arm64 STATIC=true STRIP=true
+          GIT_HASH=$(git rev-parse --short "$GITHUB_SHA")
+          mv bin/btop bin/btop-arm64-Sonoma-$GIT_HASH
+          ls -alh bin
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: btop-arm64-macos14-Sonoma
+          path: 'bin/*'
+
+  build-macos15:
+    runs-on: macos-15
+    steps:
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build tools
+        run: |
+          export HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1
+          brew update --quiet
+          brew install --force --overwrite llvm lowdown
+
+      - name: Compile
+        run: |
+          make CXX=$(brew --prefix llvm)/bin/clang++ ARCH=arm64 STATIC=true STRIP=true
+          GIT_HASH=$(git rev-parse --short "$GITHUB_SHA")
+          mv bin/btop bin/btop-arm64-Sequoia-$GIT_HASH
+          ls -alh bin
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: btop-arm64-macos15-Sequoia
+          path: 'bin/*'
+
