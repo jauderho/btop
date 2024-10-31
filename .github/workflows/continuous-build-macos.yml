@@ -72,7 +72,6 @@ jobs:
 
       - name: Install build tools
         run: |
-          export HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1
           brew update --quiet
           brew install --force --overwrite llvm lowdown
 
@@ -101,7 +100,6 @@ jobs:
 
       - name: Install build tools
         run: |
-          export HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1
           brew update --quiet
           brew install --force --overwrite llvm lowdown
 
