@@ -1,5 +1,7 @@
 # ![btop++](Img/logo.png)
 
+## FORKED: Go to the latest successful [macOS build](https://github.com/jauderho/btop/actions/workflows/continuous-build-macos.yml) to download for macOS
+
 <a href="https://repology.org/project/btop/versions">
     <img src="https://repology.org/badge/vertical-allrepos/btop.svg" alt="Packaging status" align="right">
 </a>
