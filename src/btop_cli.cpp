@@ -124,6 +124,9 @@ namespace Cli {
 				} catch (std::invalid_argument& e) {
 					error("Preset must be a positive number");
 					return OrRetCode { 1 };
+				} catch (std::out_of_range& e) {
+					error(fmt::format("Preset argument is out of range: {}", arg.data()));
+					return OrRetCode { 1 };
 				}
 				continue;
 			}
@@ -136,10 +139,13 @@ namespace Cli {
 
 				auto arg = *it;
 				try {
-					auto refresh_rate = std::min(std::stoul(arg.data()), 100UL);
+					auto refresh_rate = std::max(std::stoul(arg.data()), 100UL);
 					cli.updates = refresh_rate;
 				} catch (std::invalid_argument& e) {
 					error("Update must be a positive number");
+					return OrRetCode { 1 };
+				} catch(std::out_of_range& e) {
+					error(fmt::format("Update argument is out of range: {}", arg.data()));
 					return OrRetCode { 1 };
 				}
 				continue;
