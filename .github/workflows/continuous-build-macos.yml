@@ -36,6 +36,7 @@ jobs:
         os:
           - {runner: 'macos-14', version: 'Sonoma'}
           - {runner: 'macos-15', version: 'Sequoia'}
+          - {runner: 'macos-26', version: 'Tahoe'}
     runs-on: ${{ matrix.os.runner }}
     steps:
       - uses: maxim-lobanov/setup-xcode@v1
