@@ -205,12 +205,26 @@ C++ version and continuation of [bashtop](https://github.com/aristocratos/bashto
 
 ## Themes
 
-Btop++ uses the same theme files as bpytop and bashtop (some color values missing in bashtop themes) .
+Btop++ uses the same theme files as bpytop and bashtop (some color values missing in bashtop themes).
 
 See [themes](https://github.com/aristocratos/btop/tree/main/themes) folder for available themes.
 
+Btop searches the following directories for system themes:
+
+* `../share/btop/themes` (this path is relative to the btop executable)
+* `/usr/local/share/btop/themes`
+* `/usr/share/btop/themes`
+
+The first directory that exists and isn't empty is used as the system themes directory.
+
+The user themes directory depends on which environment variables are set:
+
+* If `$XDG_CONFIG_HOME` is set, the user themes directory is `$XDG_CONFIG_HOME/btop/themes`
+* Otherwise, if `$HOME` is set, the user themes directory is `$HOME/.config/btop/themes`
+* Otherwise, the user themes directory is `~/.config/btop/themes`
+
 The `make install` command places the default themes in `[$PREFIX or /usr/local]/share/btop/themes`.
-User created themes should be placed in `$XDG_CONFIG_HOME/btop/themes` or `$HOME/.config/btop/themes`.
+User created themes should be placed in the user themes directory.
 
 Let me know if you want to contribute with new themes.
 
@@ -319,11 +333,11 @@ Can be set with `make setcap` (preferred) or `make setuid` or by running btop wi
    sudo make install
    ```
 
-3. **(Optional/Required for Intel GPU) Set extended capabilities or suid bit to btop**
+3. **(Optional/Required for Intel GPU and CPU wattage) Set extended capabilities or suid bit to btop**
 
    Enables signal sending to any process without starting with `sudo` and can prevent /proc read permissions problems on some systems.
 
-   Is required for Intel GPU support.
+   Is required for Intel GPU support and CPU wattage monitoring.
 
    * **Run:**
 
@@ -473,11 +487,11 @@ Can be set with `make setcap` (preferred) or `make setuid` or by running btop wi
 
    Notice! Only use "sudo" when installing to a NON user owned directory.
 
-5. **(Optional/Required for Intel GPU support) Set extended capabilities or suid bit to btop**
+5. **(Optional/Required for Intel GPU support and CPU wattage) Set extended capabilities or suid bit to btop**
 
    No need for `sudo` to enable signal sending to any process and to prevent /proc read permissions problems on some systems.
 
-   Also required for Intel GPU monitoring.
+   Also required for Intel GPU monitoring and CPU wattage monitoring.
 
    Run after make install and use same PREFIX if any was used at install.
 
@@ -1342,8 +1356,8 @@ shown_boxes = "proc cpu mem net"
 #* Update time in milliseconds, recommended 2000 ms or above for better sample times for graphs.
 update_ms = 1500
 
-#* Processes sorting, "pid" "program" "arguments" "threads" "user" "memory" "cpu lazy" "cpu responsive",
-#* "cpu lazy" sorts top process over time (easier to follow), "cpu responsive" updates top process directly.
+#* Processes sorting, "pid" "program" "arguments" "threads" "user" "memory" "cpu lazy" "cpu direct",
+#* "cpu lazy" sorts top process over time (easier to follow), "cpu direct" updates top process directly.
 proc_sorting = "cpu lazy"
 
 #* Reverse sorting order, True or False.
@@ -1389,6 +1403,9 @@ cpu_bottom = False
 
 #* Shows the system uptime in the CPU box.
 show_uptime = True
+
+#* Shows the CPU package current power consumption in watts. Requires running `make setcap` or `make setuid` or running with sudo.
+show_cpu_watts = True
 
 #* Show cpu temperature.
 check_temp = True
