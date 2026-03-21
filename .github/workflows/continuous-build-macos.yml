@@ -50,11 +50,10 @@ jobs:
         run: |
           export HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1
           brew update --quiet
-          brew install --force --overwrite llvm gcc@15 lowdown
+          brew install --force --overwrite llvm lowdown
 
       - name: Compile
         run: |
-          #make CXX=$(brew --prefix)/bin/g++-15
           make CXX=$(brew --prefix llvm)/bin/clang++ ARCH=arm64 STATIC=true STRIP=true
           GIT_HASH=$(git rev-parse --short "$GITHUB_SHA")
           mv bin/btop bin/btop-arm64-${{ matrix.os.runner }}-${{ matrix.os.version }}-$GIT_HASH
