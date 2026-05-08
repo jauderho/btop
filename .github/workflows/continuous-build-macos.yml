@@ -44,6 +44,8 @@ jobs:
             version: Sonoma
           - runner: macos-15
             version: Sequoia
+          - runner: macos-26
+            version: Tahoe
     runs-on: ${{ matrix.os.runner }}
     steps:
       - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
@@ -58,7 +60,7 @@ jobs:
         run: |
           export HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1
           brew update --quiet
-          brew install --force --overwrite gcc@15 lowdown
+          brew install --force --overwrite llvm lowdown
 
       - name: Compile
         env:
