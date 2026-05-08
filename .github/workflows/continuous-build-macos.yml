@@ -67,7 +67,7 @@ jobs:
           RUNNER: "${{ matrix.os.runner }}"
           VERSION: "${{ matrix.os.version }}"
         run: |
-          make CXX=$(brew --prefix)/bin/g++-15
+          make CXX=$(brew --prefix llvm)/bin/clang++ ARCH=arm64 STATIC=true STRIP=true
           GIT_HASH=$(git rev-parse --short "$GITHUB_SHA")
           mv bin/btop bin/btop-arm64-${RUNNER}-${VERSION}-$GIT_HASH
           ls -alh bin
