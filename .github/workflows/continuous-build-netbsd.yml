@@ -40,19 +40,19 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Compile
-        uses: vmactions/netbsd-vm@1d9767765fd3f986e6de3aff4b1148f0c3a45f01 # v1.4.1
+        uses: vmactions/netbsd-vm@00081e82b14bc40114eb97f32b4455306828516b # v1.4.6
 
         with:
-          release: '10.1'
+          release: "11.0"
           usesh: true
           prepare: |
             PATH="/usr/pkg/sbin:/usr/pkg/bin:$PATH"
-            PKG_PATH="https://ftp.netbsd.org/pub/pkgsrc/packages/NetBSD/amd64/10.1/All/"
+            PKG_PATH="https://ftp.netbsd.org/pub/pkgsrc/packages/NetBSD/amd64/11.0/All/"
             export PATH PKG_PATH
             /usr/sbin/pkg_add pkgin
             pkgin -y install gmake gcc14 coreutils git
@@ -60,7 +60,7 @@ jobs:
           run: |
             gmake CXX=/usr/pkg/gcc14/bin/g++ CXXFLAGS='-DNDEBUG -I/usr/pkg/gcc14/include -I/usr/include -I/usr/pkg/include' STATIC=true STRIP=true
             GIT_HASH=$(git rev-parse --short "$GITHUB_SHA")
-            mv bin/btop bin/btop-GCC10-"$GIT_HASH"
+            mv bin/btop bin/btop-GCC14-"$GIT_HASH"
             ls -alh bin
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
