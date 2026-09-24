@@ -73,7 +73,7 @@ jobs:
       - name: Cache compiler objects
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.ccache
+          path: ${{ runner.temp }}/ccache
           key: ${{ matrix.os.runner }}-ccache-${{ github.sha }}
           restore-keys: |
             ${{ matrix.os.runner }}-ccache-
@@ -82,15 +82,25 @@ jobs:
         env:
           RUNNER: "${{ matrix.os.runner }}"
           VERSION: "${{ matrix.os.version }}"
-          CCACHE_DIR: ~/.ccache
+          CCACHE_DIR: ${{ runner.temp }}/ccache
           CCACHE_MAXSIZE: 500M
+          # Apple Silicon tuning (Makefile `override +=` keeps CLI flags).
+          # -mcpu=apple-m1 is the safe baseline for all arm64 runners
+          # (-march=native would over-tune to the host chip).
+          # BUILD_TYPE=Release enables the Makefile's own -flto=thin.
+          BTOP_CXXFLAGS: -mcpu=apple-m1 -DNDEBUG -ffunction-sections -fdata-sections -fno-math-errno
+          BTOP_LDFLAGS: -Wl,-dead_strip
         run: |
           ccache -z
-          make CXX="ccache $(brew --prefix llvm)/bin/clang++" ARCH=arm64 STATIC=true STRIP=true
+          make CXX="ccache $(brew --prefix llvm)/bin/clang++" ARCH=arm64 STATIC=true STRIP=true BUILD_TYPE=Release CXXFLAGS="$BTOP_CXXFLAGS" LDFLAGS="$BTOP_LDFLAGS"
           ccache -s
+          # STRIP=true passes -s at link time; re-strip to drop any remaining
+          # symbols and prove the shipped binary is stripped.
+          "$(brew --prefix llvm)/bin/llvm-strip" bin/btop
           GIT_HASH=$(git rev-parse --short "$GITHUB_SHA")
           mv bin/btop bin/btop-arm64-${RUNNER}-${VERSION}-$GIT_HASH
           ls -alh bin
+          file bin/btop-arm64-*
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
