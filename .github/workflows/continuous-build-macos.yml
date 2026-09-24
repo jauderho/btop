@@ -1,6 +1,9 @@
 name: Continuous Build MacOS
 
-permissions: {}
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
 
 on:
   workflow_dispatch:
@@ -109,3 +112,21 @@ jobs:
         with:
           name: btop-arm64-${{ matrix.os.runner }}-${{ matrix.os.version }}
           path: 'bin/*'
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          path: bin/
+          format: spdx-json
+          output-file: sbom-${{ matrix.os.runner }}-${{ matrix.os.version }}.spdx.json
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: 'bin/btop-arm64-*'
+
+      - name: Attest SBOM
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-path: 'bin/btop-arm64-*'
+          sbom-path: 'sbom-${{ matrix.os.runner }}-${{ matrix.os.version }}.spdx.json'
