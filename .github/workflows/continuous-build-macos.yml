@@ -56,18 +56,38 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Cache Homebrew packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/Library/Caches/Homebrew
+          key: ${{ matrix.os.runner }}-brew-${{ hashFiles('.github/workflows/continuous-build-macos.yml') }}
+          restore-keys: |
+            ${{ matrix.os.runner }}-brew-
+
       - name: Install build tools
         run: |
           export HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1
-          brew update --quiet
-          brew install --force --overwrite llvm lowdown
+          export HOMEBREW_NO_AUTO_UPDATE=1
+          brew install --force --overwrite llvm lowdown ccache
+
+      - name: Cache compiler objects
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.ccache
+          key: ${{ matrix.os.runner }}-ccache-${{ github.sha }}
+          restore-keys: |
+            ${{ matrix.os.runner }}-ccache-
 
       - name: Compile
         env:
           RUNNER: "${{ matrix.os.runner }}"
           VERSION: "${{ matrix.os.version }}"
+          CCACHE_DIR: ~/.ccache
+          CCACHE_MAXSIZE: 500M
         run: |
-          make CXX=$(brew --prefix llvm)/bin/clang++ ARCH=arm64 STATIC=true STRIP=true
+          ccache -z
+          make CXX="ccache $(brew --prefix llvm)/bin/clang++" ARCH=arm64 STATIC=true STRIP=true
+          ccache -s
           GIT_HASH=$(git rev-parse --short "$GITHUB_SHA")
           mv bin/btop bin/btop-arm64-${RUNNER}-${VERSION}-$GIT_HASH
           ls -alh bin
