@@ -86,24 +86,24 @@ jobs:
           CCACHE_MAXSIZE: 500M
           # Max-perf tuning. Makefile `OPTFLAGS := -O2 $(LTO)` and
           # `WARNFLAGS :=` are plain assignments, so CLI values win; OPTFLAGS
-          # feeds both CXXFLAGS and LDFLAGS (compile+link LTO). -mcpu=apple-m1
-          # is the safe baseline for all arm64 runners. FAST hardening keeps
-          # security-critical libc++ checks, drops debug-only heuristics.
+          # feeds both CXXFLAGS and LDFLAGS (compile+link LTO). -mcpu=apple-m2
+          # tunes for the M2 target (build-only on M1 runners, never executed
+          # there). FAST hardening keeps security-critical libc++ checks.
           BTOP_OPTFLAGS: -O3 -flto=thin
           BTOP_WARNFLAGS: -Wall -Wextra -pedantic -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_FAST
-          BTOP_CXXFLAGS: -mcpu=apple-m1 -DNDEBUG -ffunction-sections -fdata-sections -fno-math-errno
+          BTOP_CXXFLAGS: -mcpu=apple-m2 -DNDEBUG -ffunction-sections -fdata-sections -fno-math-errno
           BTOP_LDFLAGS: -Wl,-dead_strip
         run: |
           ccache -z
           make CXX="ccache $(brew --prefix llvm)/bin/clang++" ARCH=arm64 STATIC=true STRIP=true BUILD_TYPE=Release OPTFLAGS="$BTOP_OPTFLAGS" WARNFLAGS="$BTOP_WARNFLAGS" CXXFLAGS="$BTOP_CXXFLAGS" LDFLAGS="$BTOP_LDFLAGS"
           ccache -s
           # STRIP=true passes -s at link time; re-strip to drop any remaining
-          # symbols. nm output empty = stripped (|| true: nm exits 1 then).
+          # defined symbols. Undefined (U) imports always remain in Mach-O.
           "$(brew --prefix llvm)/bin/llvm-strip" bin/btop
           GIT_HASH=$(git rev-parse --short "$GITHUB_SHA")
           mv bin/btop bin/btop-arm64-${RUNNER}-${VERSION}-$GIT_HASH
           ls -alh bin
-          "$(brew --prefix llvm)/bin/llvm-nm" bin/btop-arm64-* 2>&1 | head -3 || true
+          "$(brew --prefix llvm)/bin/llvm-nm" --defined-only bin/btop-arm64-* 2>&1 | head -3 || true
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
