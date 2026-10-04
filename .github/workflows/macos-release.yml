@@ -1,0 +1,182 @@
+name: macOS release
+# Keep this exactly "Build <tag>": sync-upstream.yml matches the run title with
+# grep -qxF to avoid dispatching a second build for a tag already in flight.
+run-name: "Build ${{ inputs.tag }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "btop release tag to build (vX.Y.Z, v1.4.5 or newer)"
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: build-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      proceed: ${{ steps.check.outputs.proceed }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ inputs.tag }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          disable-sudo: true
+          egress-policy: block
+          disable-telemetry: true
+          allowed-endpoints: >
+            api.github.com:443
+            github.com:443
+
+      - name: Validate tag and check for existing release
+        id: check
+        run: |
+          if [[ ! "$TAG" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::error::'$TAG' is not a release tag (expected vX.Y.Z)"
+            exit 1
+          fi
+          NUM=$(( BASH_REMATCH[1] * 10000 + BASH_REMATCH[2] * 100 + BASH_REMATCH[3] ))
+          if (( NUM < 10405 )); then
+            echo "::error::only v1.4.5 and above are built"
+            exit 1
+          fi
+          if [[ -z "$(git ls-remote --tags https://github.com/aristocratos/btop.git "refs/tags/$TAG")" ]]; then
+            echo "::error::tag '$TAG' does not exist upstream"
+            exit 1
+          fi
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json tagName > /dev/null 2>&1; then
+            echo "release $TAG already exists; nothing to do"
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: preflight
+    if: needs.preflight.outputs.proceed == 'true'
+    runs-on: macos-26
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      TAG: ${{ inputs.tag }}
+      NAME: btop-${{ inputs.tag }}-macos-arm64
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          # macOS runners only support audit mode; setup-xcode needs sudo
+          egress-policy: audit
+          disable-telemetry: true
+
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
+        with:
+          xcode-version: latest-stable
+
+      - name: Check out btop source at tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # built straight from upstream: btop's tags touch .github/workflows/,
+          # so GITHUB_TOKEN cannot mirror them into this repo (see sync-upstream.yml)
+          repository: aristocratos/btop
+          ref: refs/tags/${{ inputs.tag }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Install build tools
+        run: |
+          export HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1
+          export HOMEBREW_NO_AUTO_UPDATE=1
+          brew install --force --overwrite llvm lowdown
+
+      - name: Build
+        env:
+          # Max-perf tuning. Makefile `OPTFLAGS := -O2 $(LTO)` and
+          # `WARNFLAGS :=` are plain assignments, so CLI values win; OPTFLAGS
+          # feeds both CXXFLAGS and LDFLAGS (compile+link LTO). -mcpu=apple-m2
+          # tunes for M2 and newer. FAST hardening keeps security-critical
+          # libc++ checks.
+          BTOP_OPTFLAGS: -O3 -flto=thin
+          BTOP_WARNFLAGS: -Wall -Wextra -pedantic -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_FAST
+          BTOP_CXXFLAGS: -mcpu=apple-m2 -DNDEBUG -ffunction-sections -fdata-sections -fno-math-errno
+          BTOP_LDFLAGS: -Wl,-dead_strip
+        run: |
+          make CXX="$(brew --prefix llvm)/bin/clang++" ARCH=arm64 STATIC=true STRIP=true BUILD_TYPE=Release OPTFLAGS="$BTOP_OPTFLAGS" WARNFLAGS="$BTOP_WARNFLAGS" CXXFLAGS="$BTOP_CXXFLAGS" LDFLAGS="$BTOP_LDFLAGS"
+          # STRIP=true passes -s at link time; re-strip to drop any remaining
+          # defined symbols. Undefined (U) imports always remain in Mach-O.
+          "$(brew --prefix llvm)/bin/llvm-strip" bin/btop
+          ls -alh bin
+
+      - name: Smoke test
+        run: |
+          ./bin/btop --version
+          ./bin/btop --help > /dev/null
+
+      - name: Package
+        run: |
+          DIST="$RUNNER_TEMP/dist"
+          STAGE="$RUNNER_TEMP/$NAME"
+          mkdir -p "$DIST"
+          # bin/btop plus share/btop/themes, which btop finds relative to itself
+          make install DESTDIR="$STAGE" PREFIX=
+          cp LICENSE "$STAGE/"
+          tar -C "$RUNNER_TEMP" -czf "$DIST/$NAME.tar.gz" "$NAME"
+          (cd "$DIST" && shasum -a 256 -- *.tar.gz > SHA256SUMS)
+          cat "$DIST/SHA256SUMS"
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          path: ${{ runner.temp }}/${{ env.NAME }}
+          format: spdx-json
+          output-file: ${{ runner.temp }}/dist/${{ env.NAME }}.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Attest build provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            ${{ runner.temp }}/${{ env.NAME }}/bin/btop
+            ${{ runner.temp }}/dist/${{ env.NAME }}.tar.gz
+
+      - name: Attest SBOM
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: ${{ runner.temp }}/${{ env.NAME }}/bin/btop
+          sbom-path: ${{ runner.temp }}/dist/${{ env.NAME }}.spdx.json
+
+      - name: Create release
+        run: |
+          {
+            echo "btop $TAG built from upstream tag \`$TAG\` (aristocratos/btop@$(git rev-parse HEAD))"
+            echo "for macOS on Apple Silicon (M2 or newer; runner: \`$ImageOS\`, $(sw_vers -productVersion))."
+            echo
+            echo "The binary is not code-signed; after extracting run:"
+            echo '```'
+            echo "xattr -dr com.apple.quarantine $NAME"
+            echo '```'
+            echo
+            echo "Verify provenance with \`gh attestation verify $NAME/bin/btop -R $GITHUB_REPOSITORY\`."
+            echo
+            echo "Upstream release notes: https://github.com/aristocratos/btop/releases/tag/$TAG"
+          } > "$RUNNER_TEMP/notes.md"
+          gh release create "$TAG" \
+            --target "$GITHUB_SHA" \
+            --title "btop $TAG (macOS Apple Silicon)" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            "$RUNNER_TEMP"/dist/*
