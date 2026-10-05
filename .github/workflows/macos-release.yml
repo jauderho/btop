@@ -54,7 +54,8 @@ jobs:
             echo "::error::tag '$TAG' does not exist upstream"
             exit 1
           fi
-          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json tagName > /dev/null 2>&1; then
+          # only a published release counts; a draft is left by a failed upload
+          if [[ "$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null)" == false ]]; then
             echo "release $TAG already exists; nothing to do"
             echo "proceed=false" >> "$GITHUB_OUTPUT"
           else
@@ -175,6 +176,11 @@ jobs:
             echo
             echo "Upstream release notes: https://github.com/aristocratos/btop/releases/tag/$TAG"
           } > "$RUNNER_TEMP/notes.md"
+          # releases are immutable once published: gh uploads the assets to a
+          # draft and publishes it last. Clear a draft left by a failed run.
+          if [[ "$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null)" == true ]]; then
+            gh release delete "$TAG" --yes
+          fi
           gh release create "$TAG" \
             --target "$GITHUB_SHA" \
             --title "btop $TAG (macOS Apple Silicon)" \
