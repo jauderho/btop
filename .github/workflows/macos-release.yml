@@ -185,4 +185,17 @@ jobs:
             --target "$GITHUB_SHA" \
             --title "btop $TAG (macOS Apple Silicon)" \
             --notes-file "$RUNNER_TEMP/notes.md" \
+            --latest=false \
             "$RUNNER_TEMP"/dist/*
+
+      - name: Mark highest version as latest
+        # GitHub would otherwise mark whichever release was published last,
+        # which is wrong when backfill builds finish out of order. Every build
+        # runs this after its own release exists, so the last to finish sees
+        # all published releases.
+        run: |
+          LATEST=$(gh api "repos/$GH_REPO/releases" --paginate \
+            --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name' \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)
+          echo "marking $LATEST as latest"
+          gh release edit "$LATEST" --latest
